@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/MtgoDecklistModels/MtgoDecklistModels.csproj" />
+    <Project Path="src/MtgoDecklistScraperNet/MtgoDecklistScraperNet.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/MtgoDecklistScraperNet.Tests/MtgoDecklistScraperNet.Tests.csproj" />
+  </Folder>
+</Solution>
