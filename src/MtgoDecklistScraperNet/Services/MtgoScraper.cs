@@ -1,49 +1,64 @@
+using Microsoft.Extensions.Logging;
+
 namespace MtgoDecklistScraperNet.Services;
 
 public class MtgoScraper
 {
     private readonly MtgoClient _client;
+    private readonly MtgoParser _parser;
     private readonly EventSaver _saver;
+    private readonly ILogger<MtgoScraper> _logger;
 
-    public MtgoScraper(MtgoClient client, EventSaver saver)
+    public MtgoScraper(MtgoClient client, MtgoParser parser, EventSaver saver, ILogger<MtgoScraper> logger)
     {
         _client = client;
+        _parser = parser;
         _saver = saver;
+        _logger = logger;
     }
 
     public async Task RunAsync(int? year = null, int? month = null, CancellationToken ct = default)
     {
-        Console.WriteLine(year.HasValue
-            ? $"Fetching MTGO decklists for {year}/{month:D2}..."
-            : "Fetching MTGO decklists...");
+        if (year.HasValue)
+        {
+            _logger.LogInformation("Fetching index for {Year}/{Month}...", year.Value, month!.Value.ToString("D2"));
+        }
+        else
+        {
+            _logger.LogInformation("Fetching index...");
+        }
 
         var indexHtml = await _client.FetchIndexAsync(year, month, ct);
-        var links = MtgoParser.ParseEventLinks(indexHtml);
-
-        Console.WriteLine($"Found {links.Count} events.");
+        var links = _parser.ParseEventLinks(indexHtml);
 
         for (var i = 0; i < links.Count; i++)
         {
             var link = links[i];
-            Console.WriteLine($"[{i + 1}/{links.Count}] Fetching {link}...");
+
+            if (_saver.EventExists(link))
+            {
+                _logger.LogInformation("Skipping {RelativeUrl} (already saved)", link);
+                continue;
+            }
+
+            _logger.LogInformation("Fetching event {RelativeUrl}...", link);
 
             try
             {
                 var eventHtml = await _client.FetchEventPageAsync(link, ct);
-                var mtgoEvent = MtgoParser.ParseEventData(eventHtml);
+                var mtgoEvent = _parser.ParseEventData(eventHtml);
 
                 if (mtgoEvent is null)
                 {
-                    Console.WriteLine($"  Warning: Could not parse event data from {link}");
+                    _logger.LogWarning("Could not parse event data from {RelativeUrl}", link);
                     continue;
                 }
 
                 await _saver.SaveEventAsync(link, mtgoEvent, ct);
-                Console.WriteLine($"  Saved {mtgoEvent.EventName ?? link} ({mtgoEvent.Decklists.Count} decks)");
             }
-            catch (HttpRequestException ex)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                Console.WriteLine($"  Error fetching {link}: {ex.Message}");
+                _logger.LogWarning(ex, "Failed to fetch event {RelativeUrl}", link);
             }
 
             // Be polite to the server
@@ -53,6 +68,7 @@ public class MtgoScraper
             }
         }
 
-        Console.WriteLine("Done.");
+        _saver.WriteIndexFiles();
+        _logger.LogInformation("Done.");
     }
 }

@@ -1,18 +1,26 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using HtmlAgilityPack;
+using Microsoft.Extensions.Logging;
 using MtgoDecklistModels;
 
 namespace MtgoDecklistScraperNet.Services;
 
-public static partial class MtgoParser
+public partial class MtgoParser
 {
     private const string DataStartMarker = "window.MTGO.decklists.data = ";
 
     [GeneratedRegex(@"window\.MTGO\.decklists\.type")]
     private static partial Regex EndMarkerRegex();
 
-    public static List<string> ParseEventLinks(string indexHtml)
+    private readonly ILogger<MtgoParser> _logger;
+
+    public MtgoParser(ILogger<MtgoParser> logger)
+    {
+        _logger = logger;
+    }
+
+    public List<string> ParseEventLinks(string indexHtml)
     {
         var doc = new HtmlDocument();
         doc.LoadHtml(indexHtml);
@@ -24,10 +32,11 @@ public static partial class MtgoParser
             .Distinct()
             .ToList() ?? [];
 
+        _logger.LogInformation("Found {Count} event links", links.Count);
         return links;
     }
 
-    public static MtgoEvent? ParseEventData(string eventHtml)
+    public MtgoEvent? ParseEventData(string eventHtml)
     {
         var json = ExtractJson(eventHtml);
         if (json is null)
@@ -48,78 +57,20 @@ public static partial class MtgoParser
 
         startIndex += DataStartMarker.Length;
 
-        // Try to find the end marker: window.MTGO.decklists.type
         var endMatch = EndMarkerRegex().Match(html, startIndex);
-        if (endMatch.Success)
+        if (!endMatch.Success)
         {
-            // Walk backwards from the end marker to find the semicolon and trim
-            var segment = html.AsSpan(startIndex, endMatch.Index - startIndex);
-            // Trim trailing whitespace and semicolon
-            segment = segment.TrimEnd();
-            if (segment.Length > 0 && segment[^1] == ';')
-            {
-                segment = segment[..^1];
-            }
-            segment = segment.TrimEnd();
-            return segment.ToString();
+            throw new InvalidOperationException(
+                "Found start marker 'window.MTGO.decklists.data' but could not find end marker 'window.MTGO.decklists.type'");
         }
 
-        // Fallback: brace-depth counting from startIndex
-        return ExtractJsonByBraceDepth(html, startIndex);
-    }
-
-    private static string? ExtractJsonByBraceDepth(string html, int startIndex)
-    {
-        if (startIndex >= html.Length || html[startIndex] != '{')
+        var segment = html.AsSpan(startIndex, endMatch.Index - startIndex);
+        segment = segment.TrimEnd();
+        if (segment.Length > 0 && segment[^1] == ';')
         {
-            return null;
+            segment = segment[..^1];
         }
-
-        var depth = 0;
-        var inString = false;
-        var escape = false;
-
-        for (var i = startIndex; i < html.Length; i++)
-        {
-            var c = html[i];
-
-            if (escape)
-            {
-                escape = false;
-                continue;
-            }
-
-            if (c == '\\' && inString)
-            {
-                escape = true;
-                continue;
-            }
-
-            if (c == '"')
-            {
-                inString = !inString;
-                continue;
-            }
-
-            if (inString)
-            {
-                continue;
-            }
-
-            if (c == '{')
-            {
-                depth++;
-            }
-            else if (c == '}')
-            {
-                depth--;
-                if (depth == 0)
-                {
-                    return html.Substring(startIndex, i - startIndex + 1);
-                }
-            }
-        }
-
-        return null;
+        segment = segment.TrimEnd();
+        return segment.ToString();
     }
 }

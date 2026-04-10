@@ -1,15 +1,18 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using MtgoDecklistScraperNet.Services;
 
 namespace MtgoDecklistScraperNet.Tests;
 
 public class MtgoParserTests
 {
+    private readonly MtgoParser _parser = new(NullLogger<MtgoParser>.Instance);
+
     [Fact]
     public void ParseEventLinks_ExtractsAllDecklistLinks()
     {
         var html = FixtureHelper.Load("index.html");
 
-        var links = MtgoParser.ParseEventLinks(html);
+        var links = _parser.ParseEventLinks(html);
 
         Assert.NotEmpty(links);
         Assert.All(links, l => Assert.StartsWith("/decklist/", l));
@@ -26,7 +29,7 @@ public class MtgoParserTests
             </body></html>
             """;
 
-        var links = MtgoParser.ParseEventLinks(html);
+        var links = _parser.ParseEventLinks(html);
 
         Assert.Equal(2, links.Count);
     }
@@ -43,7 +46,7 @@ public class MtgoParserTests
             </body></html>
             """;
 
-        var links = MtgoParser.ParseEventLinks(html);
+        var links = _parser.ParseEventLinks(html);
 
         Assert.Single(links);
         Assert.Equal("/decklist/modern-challenge-2024-01-15", links[0]);
@@ -54,7 +57,7 @@ public class MtgoParserTests
     {
         var html = FixtureHelper.Load("league-event.html");
 
-        var result = MtgoParser.ParseEventData(html);
+        var result = _parser.ParseEventData(html);
 
         Assert.NotNull(result);
         Assert.Equal("Pauper League", result.Name);
@@ -75,7 +78,7 @@ public class MtgoParserTests
     {
         var html = FixtureHelper.Load("tournament-event.html");
 
-        var result = MtgoParser.ParseEventData(html);
+        var result = _parser.ParseEventData(html);
 
         Assert.NotNull(result);
         Assert.Equal("Modern Challenge 64", result.Description);
@@ -91,7 +94,7 @@ public class MtgoParserTests
     [Fact]
     public void ParseEventData_ReturnsNull_WhenNoDataFound()
     {
-        var result = MtgoParser.ParseEventData("<html><body>No data here</body></html>");
+        var result = _parser.ParseEventData("<html><body>No data here</body></html>");
 
         Assert.Null(result);
     }
@@ -101,7 +104,7 @@ public class MtgoParserTests
     {
         var html = FixtureHelper.Load("league-event.html");
 
-        var result = MtgoParser.ParseEventData(html);
+        var result = _parser.ParseEventData(html);
 
         Assert.NotNull(result);
         var deckWithWins = result.Decklists.FirstOrDefault(d => d.Wins is not null);
@@ -115,7 +118,7 @@ public class MtgoParserTests
     {
         var html = FixtureHelper.Load("tournament-event.html");
 
-        var result = MtgoParser.ParseEventData(html);
+        var result = _parser.ParseEventData(html);
 
         Assert.NotNull(result);
         var deckWithSideboard = result.Decklists.FirstOrDefault(d => d.SideboardDeck.Count > 0);
@@ -133,5 +136,19 @@ public class MtgoParserTests
         Assert.NotNull(json);
         Assert.StartsWith("{", json);
         Assert.EndsWith("}", json);
+    }
+
+    [Fact]
+    public void ExtractJson_ThrowsWhenEndMarkerMissing()
+    {
+        var html = """
+            <html><body>
+            <script>
+            window.MTGO.decklists.data = {"some":"data"};
+            </script>
+            </body></html>
+            """;
+
+        Assert.Throws<InvalidOperationException>(() => MtgoParser.ExtractJson(html));
     }
 }

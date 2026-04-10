@@ -1,5 +1,6 @@
 using System.CommandLine;
 using System.IO.Abstractions;
+using Microsoft.Extensions.Logging;
 using MtgoDecklistScraperNet.Services;
 
 var yearOption = new Option<int?>("--year", "Year to fetch decklists for (e.g. 2026)");
@@ -29,11 +30,17 @@ rootCommand.AddValidator(result =>
 
 rootCommand.SetHandler(async (int? year, int? month) =>
 {
+    using var loggerFactory = LoggerFactory.Create(builder =>
+    {
+        builder.AddConsole();
+    });
+
     var httpClient = new HttpClient();
     var fileSystem = new FileSystem();
     var client = new MtgoClient(httpClient);
-    var saver = new EventSaver(fileSystem, "output");
-    var scraper = new MtgoScraper(client, saver);
+    var parser = new MtgoParser(loggerFactory.CreateLogger<MtgoParser>());
+    var saver = new EventSaver(fileSystem, "output", loggerFactory.CreateLogger<EventSaver>());
+    var scraper = new MtgoScraper(client, parser, saver, loggerFactory.CreateLogger<MtgoScraper>());
 
     await scraper.RunAsync(year, month);
 }, yearOption, monthOption);
