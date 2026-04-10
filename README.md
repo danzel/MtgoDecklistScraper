@@ -2,6 +2,8 @@
 
 A .NET console app that scrapes Magic: The Gathering Online decklists from [mtgo.com/decklists](https://www.mtgo.com/decklists) and saves each event as a JSON file organised by year and month.
 
+If you just want a copy of the output, head over to https://github.com/danzel/MtgoDecklistScraperDecks
+
 ## Usage
 
 Run for the current month's events:
