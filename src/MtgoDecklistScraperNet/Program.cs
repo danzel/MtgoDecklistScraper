@@ -35,7 +35,8 @@ rootCommand.SetHandler(async (int? year, int? month) =>
         builder.AddConsole();
     });
 
-    var httpClient = new HttpClient();
+    var retryHandler = new RetryHandler(loggerFactory.CreateLogger<RetryHandler>(), new HttpClientHandler());
+    var httpClient = new HttpClient(retryHandler);
     var fileSystem = new FileSystem();
     var client = new MtgoClient(httpClient);
     var parser = new MtgoParser(loggerFactory.CreateLogger<MtgoParser>());

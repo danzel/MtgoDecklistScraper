@@ -28,8 +28,17 @@ public class MtgoScraper
             _logger.LogInformation("Fetching index...");
         }
 
-        var indexHtml = await _client.FetchIndexAsync(year, month, ct);
-        var links = _parser.ParseEventLinks(indexHtml);
+        List<string> links;
+        try
+        {
+            var indexHtml = await _client.FetchIndexAsync(year, month, ct);
+            links = _parser.ParseEventLinks(indexHtml);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(ex, "Failed to fetch or parse index");
+            throw;
+        }
 
         for (var i = 0; i < links.Count; i++)
         {
