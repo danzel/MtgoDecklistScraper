@@ -4,7 +4,7 @@ namespace MtgoDecklistScraperNet.Services;
 
 public class RetryHandler : DelegatingHandler
 {
-	private const int MaxRetries = 10;
+	private const int MaxRetries = 30;
 	private static readonly TimeSpan DefaultRetryDelay = TimeSpan.FromSeconds(5);
 
 	private readonly ILogger<RetryHandler> _logger;
